@@ -84,8 +84,18 @@ type WAL interface {
 	LogSeries([]labels.Labels) error
 	LogSamples([]RefSample) error
 	LogDeletes([]Stone) error
+	Truncate(maxt int64) error
 	Close() error
 }
+
+type NopWAL struct{}
+
+func (NopWAL) Read(SeriesCB, SamplesCB, DeletesCB) error { return nil }
+func (w NopWAL) Reader() WALReader                       { return w }
+func (NopWAL) LogSeries([]labels.Labels) error           { return nil }
+func (NopWAL) LogSamples([]RefSample) error              { return nil }
+func (NopWAL) LogDeletes([]Stone) error                  { return nil }
+func (NopWAL) Close() error                              { return nil }
 
 // WALReader reads entries from a WAL.
 type WALReader interface {
@@ -304,6 +314,10 @@ func (w *SegmentWAL) Sync() error {
 	return w.sync()
 }
 
+func (w *SegmentWAL) Truncate(maxt int64) error {
+	return nil
+}
+
 func (w *SegmentWAL) sync() error {
 	if w.cur == nil {
 		return nil
@@ -341,9 +355,8 @@ func (w *SegmentWAL) Close() error {
 	close(w.stopc)
 	<-w.donec
 
-	// Lock mutex and leave it locked so we panic if there's a bug causing
-	// the block to be used afterwards.
 	w.mtx.Lock()
+	defer w.mtx.Unlock()
 
 	if err := w.sync(); err != nil {
 		return err
