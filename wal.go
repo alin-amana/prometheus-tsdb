@@ -299,19 +299,25 @@ func (w *SegmentWAL) tail() *os.File {
 // Sync flushes the changes to disk.
 func (w *SegmentWAL) Sync() error {
 	w.mtx.Lock()
-	defer w.mtx.Unlock()
+	var cur = w.cur
+	var tail = w.tail()
+	w.mtx.Unlock()
 
-	return w.sync()
+	return syncImpl(cur, tail)
 }
 
 func (w *SegmentWAL) sync() error {
-	if w.cur == nil {
+	return syncImpl(w.cur, w.tail())
+}
+
+func syncImpl(cur *bufio.Writer, tail *os.File) error {
+	if cur == nil {
 		return nil
 	}
-	if err := w.cur.Flush(); err != nil {
+	if err := cur.Flush(); err != nil {
 		return err
 	}
-	return fileutil.Fdatasync(w.tail())
+	return fileutil.Fdatasync(tail)
 }
 
 func (w *SegmentWAL) run(interval time.Duration) {
