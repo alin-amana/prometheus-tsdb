@@ -80,7 +80,7 @@ type SegmentWAL struct {
 // WAL is a write ahead log that can log new series labels and samples.
 // It must be completely read before new entries are logged.
 type WAL interface {
-	Reader() WALReader
+	Reader(mint int64) WALReader
 	LogSeries([]labels.Labels) error
 	LogSamples([]RefSample) error
 	LogDeletes([]Stone) error
@@ -91,7 +91,7 @@ type WAL interface {
 type NopWAL struct{}
 
 func (NopWAL) Read(SeriesCB, SamplesCB, DeletesCB) error { return nil }
-func (w NopWAL) Reader() WALReader                       { return w }
+func (w NopWAL) Reader(int64) WALReader                  { return w }
 func (NopWAL) LogSeries([]labels.Labels) error           { return nil }
 func (NopWAL) LogSamples([]RefSample) error              { return nil }
 func (NopWAL) LogDeletes([]Stone) error                  { return nil }
@@ -162,7 +162,7 @@ func OpenSegmentWAL(dir string, logger log.Logger, flushInterval time.Duration) 
 
 // Reader returns a new reader over the the write ahead log data.
 // It must be completely consumed before writing to the WAL.
-func (w *SegmentWAL) Reader() WALReader {
+func (w *SegmentWAL) Reader(int64) WALReader {
 	return newWALReader(w, w.logger)
 }
 

@@ -316,10 +316,10 @@ func Open(dir string, l log.Logger, r prometheus.Registerer, opts *Options) (db 
 	if err != nil {
 		return nil, err
 	}
-	if err := db.readWAL(db.wal.Reader()); err != nil {
+	if err := db.reload(); err != nil {
 		return nil, err
 	}
-	if err := db.reloadBlocks(); err != nil {
+	if err := db.readWAL(db.wal.Reader(db.head.MinTime())); err != nil {
 		return nil, err
 	}
 
@@ -341,6 +341,7 @@ func (db *DB) run() {
 	for {
 		select {
 		case <-db.stopc:
+			return
 		case <-time.After(backoff):
 		}
 
@@ -364,7 +365,9 @@ func (db *DB) run() {
 			}
 
 			if err1 != nil || err2 != nil {
-				exponential(backoff, 1*time.Second, 1*time.Minute)
+				backoff = exponential(backoff, 1*time.Second, 1*time.Minute)
+			} else {
+				backoff = 0
 			}
 
 		case <-db.stopc:
@@ -425,7 +428,7 @@ func (db *DB) compact() (changes bool, err error) {
 		}
 		changes = true
 
-		if err := db.reloadBlocks(); err != nil {
+		if err := db.reload(); err != nil {
 			return changes, errors.Wrap(err, "reload blocks")
 		}
 		runtime.GC()
@@ -458,7 +461,7 @@ func (db *DB) compact() (changes bool, err error) {
 			}
 		}
 
-		if err := db.reloadBlocks(); err != nil {
+		if err := db.reload(); err != nil {
 			return changes, errors.Wrap(err, "reload blocks")
 		}
 		runtime.GC()
@@ -550,12 +553,11 @@ func (db *DB) readWAL(r WALReader) error {
 	if err := r.Read(seriesFunc, samplesFunc, deletesFunc); err != nil {
 		return errors.Wrap(err, "consume WAL")
 	}
-
 	return nil
 
 }
 
-func (db *DB) reloadBlocks() (err error) {
+func (db *DB) reload() (err error) {
 	defer func() {
 		if err != nil {
 			db.metrics.reloadsFailed.Inc()
@@ -613,11 +615,11 @@ func (db *DB) reloadBlocks() (err error) {
 	// Garbage collect data in the head if the most recent persisted block
 	// covers data of its current time range.
 	if len(blocks) == 0 {
-		return
+		return nil
 	}
 	maxt := blocks[len(db.blocks)-1].Meta().MaxTime
 	if maxt <= db.head.MinTime() {
-		return
+		return nil
 	}
 	start := time.Now()
 	atomic.StoreInt64(&db.head.minTime, maxt)

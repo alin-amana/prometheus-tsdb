@@ -571,6 +571,7 @@ func (s *memSeries) append(t int64, v float64) (success, chunkCreated bool) {
 	}
 	if c.samples > samplesPerChunk/4 && t >= s.nextAt {
 		c = s.cut(t)
+		chunkCreated = true
 	}
 	s.app.Append(t, v)
 
