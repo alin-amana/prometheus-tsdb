@@ -323,7 +323,7 @@ func (w *SegmentWAL) sync() error {
 	if err := w.flush(); err != nil {
 		return err
 	}
-	return fileutil.Fdatasync(tail)
+	return fileutil.Fdatasync(w.tail())
 }
 
 func (w *SegmentWAL) flush() error {
