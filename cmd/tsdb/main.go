@@ -117,7 +117,7 @@ func (b *writeBenchmark) run() {
 
 	dur := measureTime("ingestScrapes", func() {
 		b.startProfiling()
-		total, err = b.ingestScrapes(metrics, 15000)
+		total, err = b.ingestScrapes(metrics, 2000)
 		if err != nil {
 			exitWithError(err)
 		}
@@ -125,7 +125,6 @@ func (b *writeBenchmark) run() {
 
 	fmt.Println(" > total samples:", total)
 	fmt.Println(" > samples/sec:", float64(total)/dur.Seconds())
-	select {}
 
 	measureTime("stopStorage", func() {
 		if err := b.storage.Close(); err != nil {
