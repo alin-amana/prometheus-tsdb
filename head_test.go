@@ -93,7 +93,7 @@ func (w *memoryWAL) Reader() WALReader {
 	return w
 }
 
-func (w *memoryWAL) Read(series SeriesCB, samples SamplesCB, deletes DeletesCB) error {
+func (w *memoryWAL) Read(series func([]RefSeries), samples func([]RefSample), deletes func([]Stone)) error {
 	for _, e := range w.entries {
 		switch v := e.(type) {
 		case []RefSeries:
@@ -187,8 +187,8 @@ func TestHead_Truncate(t *testing.T) {
 	}
 	s4.chunks = []*memChunk{}
 
-	// Truncation must be aligned.
-	require.Error(t, h.Truncate(1))
+	// Truncation need not be aligned.
+	require.NoError(t, h.Truncate(1))
 
 	h.Truncate(2000)
 
@@ -322,7 +322,8 @@ Outer:
 		}
 
 		// Compare the result.
-		q := NewBlockQuerier(head.Index(), head.Chunks(), head.Tombstones(), head.MinTime(), head.MaxTime())
+		q, err := NewBlockQuerier(head, head.MinTime(), head.MaxTime())
+		require.NoError(t, err)
 		res := q.Select(labels.NewEqualMatcher("a", "b"))
 
 		expSamples := make([]sample, 0, len(c.remaint))
